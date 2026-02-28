@@ -11,6 +11,7 @@
 - **违规即终止**：未经确认跳过 Coder 执行或 Codex 审核 = **流程违规**
 - **必须会话复用**：必须保存接收到的 `SESSION_ID` ，并始终在请求参数中携带 `SESSION_ID` 保持上下文
 - **SESSION_ID 管理规范**：各角色（Coder/Codex/Gemini）的 SESSION_ID 相互独立，必须使用 MCP 工具响应返回的实际 SESSION_ID 值，严禁自创 ID 或混用不同角色的 ID
+- **语言规范**：所有面向用户的回复**必须使用中文**；给 Coder/Codex/Gemini 的 Prompt 使用英文（如有必要可附中文注释）
 
 ## ⚠️ Skill 阅读前置条件（强制）
 
