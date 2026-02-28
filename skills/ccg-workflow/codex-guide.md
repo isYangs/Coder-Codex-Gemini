@@ -60,6 +60,36 @@
 | `subprocess_error` | 进程退出码非零 |
 | `unexpected_exception` | 未预期异常 |
 
+## 审核最佳实践
+
+调用 Codex 审核前，Claude 应先获取 git diff 并附在 PROMPT 中，让 Codex 精准审核变更而非自行探索文件：
+
+```bash
+# Claude 在调用 Codex 前执行
+git diff --no-color
+```
+
+将 diff 输出直接嵌入 Codex 的 PROMPT，格式：
+
+````
+请 review 以下代码改动：
+
+**改动文件**：[文件列表]
+**改动目的**：[简要描述]
+
+**Git Diff**:
+```diff
+[粘贴 git diff 输出]
+```
+
+**请检查**：
+1. 代码质量
+2. 潜在 Bug
+3. 需求完成度
+````
+
+这样 Codex 无需自行读取文件，节省 token 并提高审核精准度。
+
 ## Prompt 模板
 
 ```
