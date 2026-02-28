@@ -91,8 +91,20 @@ def build_coder_env(config: dict[str, Any]) -> dict[str, str]:
 
     env = os.environ.copy()
 
-    # API 认证
-    env["ANTHROPIC_AUTH_TOKEN"] = coder_config.get("api_token", "")
+    # 清理父进程继承的干扰变量
+    # CLAUDE_CODE_ENTRYPOINT=claude-vscode 会导致 -p 模式下 API Key 被拒绝
+    _parent_vars_to_remove = [
+        "CLAUDE_CODE_ENTRYPOINT",
+        "CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING",
+        "CLAUDE_AGENT_SDK_VERSION",
+    ]
+    for var in _parent_vars_to_remove:
+        env.pop(var, None)
+
+    # API 认证：通过 ANTHROPIC_API_KEY（x-api-key 头）
+    api_token = coder_config.get("api_token", "")
+    env["ANTHROPIC_API_KEY"] = api_token
+    env.pop("ANTHROPIC_AUTH_TOKEN", None)
     env["ANTHROPIC_BASE_URL"] = coder_config.get(
         "base_url",
         "https://open.bigmodel.cn/api/anthropic"
@@ -109,6 +121,37 @@ def build_coder_env(config: dict[str, Any]) -> dict[str, str]:
         env[key] = str(value)
 
     return env
+
+
+def build_coder_settings_json(config: dict[str, Any]) -> str:
+    """构建 --settings 参数的 JSON 字符串
+
+    用于覆盖父进程 settings.json 中的 env 块，确保 Coder 使用正确的 API 配置。
+    Claude CLI 加载 settings.json 时会覆盖进程环境变量，因此必须通过 --settings
+    参数以更高优先级注入正确的值。
+
+    Args:
+        config: 配置字典
+
+    Returns:
+        JSON 字符串，传递给 claude CLI 的 --settings 参数
+    """
+    import json
+
+    coder_config = config.get("coder", {})
+
+    settings = {
+        "env": {
+            "ANTHROPIC_BASE_URL": coder_config.get(
+                "base_url",
+                "https://open.bigmodel.cn/api/anthropic"
+            ),
+            # 清空 AUTH_TOKEN 防止父进程的 token 干扰认证
+            "ANTHROPIC_AUTH_TOKEN": "",
+        }
+    }
+
+    return json.dumps(settings, ensure_ascii=False)
 
 
 def validate_config(config: dict[str, Any]) -> None:

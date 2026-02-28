@@ -20,7 +20,7 @@ from typing import Annotated, Any, Dict, Generator, Iterator, Literal, Optional
 
 from pydantic import Field
 
-from ccg_mcp.config import build_coder_env, get_config
+from ccg_mcp.config import build_coder_env, build_coder_settings_json, get_config
 
 
 # ============================================================================
@@ -642,6 +642,7 @@ async def coder_tool(
     try:
         config = get_config()
         env = build_coder_env(config)
+        settings_json = build_coder_settings_json(config)
     except Exception as e:
         error_msg = f"配置加载失败：{e}"
         metrics.finish(success=False, error_kind=ErrorKind.CONFIG_ERROR)
@@ -666,6 +667,7 @@ async def coder_tool(
         "--output-format", "stream-json",        # 2. 输出格式（流式 JSON，支持中间状态）
         "--verbose",                             # 3. stream-json 在 -p 模式下需要 --verbose
         "--setting-sources", "project",          # 4. 设置源（仅加载项目级设置）
+        "--settings", settings_json,             # 5. 覆盖父进程 settings.json 的 env 块
     ]
 
     # 5. 安全策略
