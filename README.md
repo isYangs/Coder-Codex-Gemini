@@ -167,14 +167,14 @@ flowchart TB
 
 **Windows（双击运行或终端执行）**
 ```powershell
-git clone https://github.com/FredericMN/Coder-Codex-Gemini.git
+git clone https://github.com/isYangs/Coder-Codex-Gemini.git
 cd Coder-Codex-Gemini
 .\setup.bat
 ```
 
 **macOS/Linux**
 ```bash
-git clone https://github.com/FredericMN/Coder-Codex-Gemini.git
+git clone https://github.com/isYangs/Coder-Codex-Gemini.git
 cd Coder-Codex-Gemini
 chmod +x setup.sh && ./setup.sh
 ```
@@ -231,7 +231,7 @@ uv --version
 一键脚本默认使用远程安装方式，无需额外操作。如需手动安装：
 
 ```bash
-claude mcp add ccg -s user --transport stdio -- uvx --refresh --from git+https://github.com/FredericMN/Coder-Codex-Gemini.git ccg-mcp
+claude mcp add ccg -s user --transport stdio -- uvx --refresh --from git+https://github.com/isYangs/Coder-Codex-Gemini.git ccg-mcp
 ```
 
 #### 本地安装（仅开发调试）
@@ -653,14 +653,14 @@ ccg: ... - ✓ Connected
 
 **Windows（双击运行或终端执行）**
 ```powershell
-git clone https://github.com/FredericMN/Coder-Codex-Gemini.git
+git clone https://github.com/isYangs/Coder-Codex-Gemini.git
 cd Coder-Codex-Gemini
 .\setup-opencode.bat
 ```
 
 **macOS/Linux**
 ```bash
-git clone https://github.com/FredericMN/Coder-Codex-Gemini.git
+git clone https://github.com/isYangs/Coder-Codex-Gemini.git
 cd Coder-Codex-Gemini
 chmod +x setup-opencode.sh && ./setup-opencode.sh
 ```
@@ -807,7 +807,7 @@ opencode auth login
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/FredericMN/Coder-Codex-Gemini.git
+git clone https://github.com/isYangs/Coder-Codex-Gemini.git
 cd Coder-Codex-Gemini
 
 # 2. 安装依赖 (使用 uv)

@@ -167,14 +167,14 @@ We provide one-click setup scripts that automate all configuration steps:
 
 **Windows (Double-click or run in terminal)**
 ```powershell
-git clone https://github.com/FredericMN/Coder-Codex-Gemini.git
+git clone https://github.com/isYangs/Coder-Codex-Gemini.git
 cd Coder-Codex-Gemini
 .\setup.bat
 ```
 
 **macOS/Linux**
 ```bash
-git clone https://github.com/FredericMN/Coder-Codex-Gemini.git
+git clone https://github.com/isYangs/Coder-Codex-Gemini.git
 cd Coder-Codex-Gemini
 chmod +x setup.sh && ./setup.sh
 ```
@@ -203,7 +203,7 @@ chmod +x setup.sh && ./setup.sh
 One-click scripts use remote installation by default. For manual installation:
 
 ```bash
-claude mcp add ccg -s user --transport stdio -- uvx --refresh --from git+https://github.com/FredericMN/Coder-Codex-Gemini.git ccg-mcp
+claude mcp add ccg -s user --transport stdio -- uvx --refresh --from git+https://github.com/isYangs/Coder-Codex-Gemini.git ccg-mcp
 ```
 
 #### Local Installation (Development Only)
@@ -603,14 +603,14 @@ This project uses a **MCP + Skills + Global Prompt** hybrid architecture in Clau
 
 **Windows (Double-click or run in terminal)**
 ```powershell
-git clone https://github.com/FredericMN/Coder-Codex-Gemini.git
+git clone https://github.com/isYangs/Coder-Codex-Gemini.git
 cd Coder-Codex-Gemini
 .\setup-opencode.bat
 ```
 
 **macOS/Linux**
 ```bash
-git clone https://github.com/FredericMN/Coder-Codex-Gemini.git
+git clone https://github.com/isYangs/Coder-Codex-Gemini.git
 cd Coder-Codex-Gemini
 chmod +x setup-opencode.sh && ./setup-opencode.sh
 ```
@@ -757,7 +757,7 @@ Issues and Pull Requests are welcome!
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/FredericMN/Coder-Codex-Gemini.git
+git clone https://github.com/isYangs/Coder-Codex-Gemini.git
 cd Coder-Codex-Gemini
 
 # 2. Install dependencies (using uv)
