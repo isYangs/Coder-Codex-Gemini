@@ -173,147 +173,98 @@ if ($DryRun) {
 # ==============================================================================
 Write-Step "Step 3: Registering MCP server..."
 
-if ($DryRun) {
-    Write-DryRun "Would run: claude mcp remove ccg --scope user"
+# Check uv version to determine if --refresh is supported
+$useRefresh = $false
+$uvVersionKnown = $false
 
-    # Check uv version
-    $useRefresh = $false
-    try {
-        $uvVersionOutput = uv --version 2>&1
-        if ($uvVersionOutput -match "uv (\d+)\.(\d+)\.(\d+)") {
-            $major = [int]$Matches[1]
-            $minor = [int]$Matches[2]
-            if ($major -gt 0 -or ($major -eq 0 -and $minor -ge 4)) {
-                $useRefresh = $true
-            }
+try {
+    $uvVersionOutput = uv --version 2>&1
+    if ($uvVersionOutput -match "uv (\d+)\.(\d+)\.(\d+)") {
+        $uvVersionKnown = $true
+        $major = [int]$Matches[1]
+        $minor = [int]$Matches[2]
+        # --refresh requires uv >= 0.4.0
+        if ($major -gt 0 -or ($major -eq 0 -and $minor -ge 4)) {
+            $useRefresh = $true
         }
-    } catch {}
+    }
+} catch {}
 
-    if ($useRefresh) {
-        Write-DryRun "Would run: claude mcp add ccg --scope user --transport stdio -- uvx --refresh --from git+https://github.com/isYangs/Coder-Codex-Gemini.git ccg-mcp"
-    } else {
-        Write-DryRun "Would run: claude mcp add ccg --scope user --transport stdio -- uvx --from git+https://github.com/isYangs/Coder-Codex-Gemini.git ccg-mcp"
-    }
-    Write-Success "MCP server would be registered"
+# Build the args array based on uv version
+if ($useRefresh) {
+    $mcpArgs = @("--refresh", "--from", "git+https://github.com/isYangs/Coder-Codex-Gemini.git", "ccg-mcp")
+    $refreshNote = "(with --refresh)"
 } else {
-    # Temporarily relax error handling for native commands in Step 3
-    $oldErrorActionPreference = $ErrorActionPreference
-    $oldNativeCommandEap = $null
-    $ErrorActionPreference = "Continue"
-    if ($PSVersionTable.PSVersion.Major -ge 7) {
-        $oldNativeCommandEap = $PSNativeCommandUseErrorActionPreference
-        $PSNativeCommandUseErrorActionPreference = $false
+    $mcpArgs = @("--from", "git+https://github.com/isYangs/Coder-Codex-Gemini.git", "ccg-mcp")
+    if ($uvVersionKnown) {
+        Write-WarningMsg "Your uv version does not support --refresh option (requires uv >= 0.4.0)"
+    } else {
+        Write-WarningMsg "Could not determine uv version, skipping --refresh option"
     }
+    Write-WarningMsg "Consider upgrading uv: powershell -c `"irm https://astral.sh/uv/install.ps1 | iex`""
+    $refreshNote = "(without --refresh)"
+}
+
+if ($DryRun) {
+    Write-DryRun "Would modify: $env:USERPROFILE\.claude\settings.json"
+    Write-DryRun "Would add/update mcpServers.ccg entry with args: $($mcpArgs -join ', ')"
+    Write-Success "MCP server would be registered $refreshNote"
+} else {
+    # Directly modify settings.json
+    $settingsPath = "$env:USERPROFILE\.claude\settings.json"
+    $settingsDir = "$env:USERPROFILE\.claude"
 
     try {
-        # Try to remove existing ccg MCP server if it exists
-        $null = & claude @("mcp","remove","ccg","--scope","user") 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        # Create .claude directory if it doesn't exist
+        if (!(Test-Path $settingsDir)) {
+            New-Item -ItemType Directory -Path $settingsDir -Force | Out-Null
+        }
+
+        # Read existing settings or create new structure
+        if (Test-Path $settingsPath) {
+            try {
+                $raw = Get-Content $settingsPath -Raw -Encoding UTF8
+                if ([string]::IsNullOrWhiteSpace($raw)) {
+                    $settings = [PSCustomObject]@{}
+                } else {
+                    $settings = $raw | ConvertFrom-Json
+                }
+            } catch {
+                Write-WarningMsg "settings.json is corrupt, will recreate"
+                $settings = [PSCustomObject]@{}
+            }
+        } else {
+            $settings = [PSCustomObject]@{}
+        }
+
+        # Ensure mcpServers exists
+        if (!($settings.PSObject.Properties.Name -contains "mcpServers")) {
+            $settings | Add-Member -Type NoteProperty -Name "mcpServers" -Value ([PSCustomObject]@{})
+        }
+
+        # Check if ccg entry already exists
+        $ccgExisted = $settings.mcpServers.PSObject.Properties.Name -contains "ccg"
+        if ($ccgExisted) {
             Write-WarningMsg "Removed existing ccg MCP server"
         }
 
-        # Check uv version to determine if --refresh is supported
-        $mcpRegistered = $false
-        $lastError = ""
-        $useRefresh = $false
-        $uvVersionKnown = $false
-
-        try {
-            $uvVersionOutput = uv --version 2>&1
-            if ($uvVersionOutput -match "uv (\d+)\.(\d+)\.(\d+)") {
-                $uvVersionKnown = $true
-                $major = [int]$Matches[1]
-                $minor = [int]$Matches[2]
-                # --refresh requires uv >= 0.4.0
-                if ($major -gt 0 -or ($major -eq 0 -and $minor -ge 4)) {
-                    $useRefresh = $true
-                }
-            }
-        } catch {
-            # If we can't determine version, don't use --refresh
+        # Create the ccg MCP server entry
+        $ccgEntry = [PSCustomObject]@{
+            command = "uvx"
+            args = $mcpArgs
         }
 
-        if ($useRefresh) {
-            # Try with --refresh first
-            $refreshSucceeded = $false
-            try {
-                $refreshOutput = & claude @("mcp","add","ccg","--scope","user","--transport","stdio","--","uvx","--refresh","--from","git+https://github.com/isYangs/Coder-Codex-Gemini.git","ccg-mcp") 2>&1
-                if ($LASTEXITCODE -eq 0) {
-                    $refreshSucceeded = $true
-                }
-            } catch {
-                $refreshOutput = $_.Exception.Message
-                $refreshSucceeded = $false
-            }
+        # Update the mcpServers.ccg entry
+        $settings.mcpServers | Add-Member -Type NoteProperty -Name "ccg" -Value $ccgEntry -Force
 
-            if ($refreshSucceeded) {
-                $mcpRegistered = $true
-                Write-Success "MCP server registered (with --refresh)"
-            } else {
-                # Check if error is about --refresh option (covers various CLI error message formats)
-                # Use -replace to normalize whitespace for reliable matching
-                $refreshOutputStr = ($refreshOutput | Out-String) -replace '\s+', ' '
-                if ($refreshOutputStr -match "(?i)(unknown|unrecognized|unexpected|invalid|no such|unsupported|found argument).*--refresh|--refresh.*(unknown|unrecognized|unexpected|invalid|no such|unsupported|found argument)|unknown option.*--refresh") {
-                    # Fallback: --refresh was rejected, try without it
-                    Write-WarningMsg "--refresh option was rejected, falling back to installation without --refresh..."
-                    $fallbackSucceeded = $false
-                    try {
-                        $fallbackOutput = & claude @("mcp","add","ccg","--scope","user","--transport","stdio","--","uvx","--from","git+https://github.com/isYangs/Coder-Codex-Gemini.git","ccg-mcp") 2>&1
-                        if ($LASTEXITCODE -eq 0) {
-                            $fallbackSucceeded = $true
-                        }
-                    } catch {
-                        $fallbackOutput = $_.Exception.Message
-                        $fallbackSucceeded = $false
-                    }
-                    if ($fallbackSucceeded) {
-                        $mcpRegistered = $true
-                        Write-Success "MCP server registered (without --refresh)"
-                    } else {
-                        $lastError = $fallbackOutput
-                    }
-                } else {
-                    $lastError = $refreshOutput
-                }
-            }
-        } else {
-            # uv version too old or unknown, skip --refresh
-            if ($uvVersionKnown) {
-                Write-WarningMsg "Your uv version does not support --refresh option (requires uv >= 0.4.0)"
-            } else {
-                Write-WarningMsg "Could not determine uv version, skipping --refresh option"
-            }
-            Write-WarningMsg "Installing without --refresh..."
-            Write-WarningMsg "Consider upgrading uv: powershell -c `"irm https://astral.sh/uv/install.ps1 | iex`""
+        # Convert to JSON with proper formatting and write back
+        $jsonOutput = $settings | ConvertTo-Json -Depth 10
+        [System.IO.File]::WriteAllText($settingsPath, $jsonOutput, [System.Text.UTF8Encoding]::new($false))
 
-            $fallbackSucceeded = $false
-            try {
-                $fallbackOutput = & claude @("mcp","add","ccg","--scope","user","--transport","stdio","--","uvx","--from","git+https://github.com/isYangs/Coder-Codex-Gemini.git","ccg-mcp") 2>&1
-                if ($LASTEXITCODE -eq 0) {
-                    $fallbackSucceeded = $true
-                }
-            } catch {
-                $fallbackOutput = $_.Exception.Message
-                $fallbackSucceeded = $false
-            }
-            if ($fallbackSucceeded) {
-                $mcpRegistered = $true
-                Write-Success "MCP server registered (without --refresh)"
-            } else {
-                $lastError = $fallbackOutput
-            }
-        }
-
-        if (-not $mcpRegistered) {
-            Write-ErrorMsg "Failed to register MCP server"
-            Write-Host "Error details: $lastError" -ForegroundColor Red
-            exit 1
-        }
-    } finally {
-        $ErrorActionPreference = $oldErrorActionPreference
-        if ($PSVersionTable.PSVersion.Major -ge 7) {
-            $PSNativeCommandUseErrorActionPreference = $oldNativeCommandEap
-        }
+        Write-Success "MCP server registered $refreshNote"
+    } catch {
+        Write-ErrorMsg "Failed to register MCP server: $_"
+        exit 1
     }
 }
 

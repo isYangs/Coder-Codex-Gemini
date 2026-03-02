@@ -34,38 +34,40 @@ function Write-WarningMsg {
 # ==============================================================================
 Write-Step "Step 1: Removing MCP server registration..."
 
-# Temporarily relax error handling for native commands in Step 1
-$oldErrorActionPreference = $ErrorActionPreference
-$oldNativeCommandEap = $null
-$ErrorActionPreference = "Continue"
-if ($PSVersionTable.PSVersion.Major -ge 7) {
-    $oldNativeCommandEap = $PSNativeCommandUseErrorActionPreference
-    $PSNativeCommandUseErrorActionPreference = $false
-}
+# Directly modify settings.json
+$settingsPath = "$env:USERPROFILE\.claude\settings.json"
 
-try {
-    $claudeInstalled = $false
+if (!(Test-Path $settingsPath)) {
+    Write-WarningMsg "MCP server 'ccg' was not registered"
+} else {
     try {
-        $null = & claude @("--version") 2>&1
-        $claudeInstalled = $true
-    } catch {
-        # claude not found
-    }
-
-    if ($claudeInstalled) {
-        $null = & claude @("mcp","remove","ccg","--scope","user") 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-Success "MCP server 'ccg' removed"
+        $raw = Get-Content $settingsPath -Raw -Encoding UTF8
+        if ([string]::IsNullOrWhiteSpace($raw)) {
+            Write-WarningMsg "MCP server 'ccg' was not registered"
         } else {
-            Write-WarningMsg "MCP server 'ccg' was not registered or removal failed"
+            $settings = $raw | ConvertFrom-Json
+
+            # Check if mcpServers exists and has ccg entry
+            if (!($settings.PSObject.Properties.Name -contains "mcpServers") -or !($settings.mcpServers.PSObject.Properties.Name -contains "ccg")) {
+                Write-WarningMsg "MCP server 'ccg' was not registered"
+            } else {
+                # Remove the ccg entry
+                $settings.mcpServers.PSObject.Properties.Remove('ccg')
+
+                # Remove mcpServers key if empty
+                if ($settings.mcpServers.PSObject.Properties.Count -eq 0) {
+                    $settings.PSObject.Properties.Remove('mcpServers')
+                }
+
+                # Convert to JSON with proper formatting and write back
+                $jsonOutput = $settings | ConvertTo-Json -Depth 10
+                [System.IO.File]::WriteAllText($settingsPath, $jsonOutput, [System.Text.UTF8Encoding]::new($false))
+
+                Write-Success "MCP server 'ccg' removed"
+            }
         }
-    } else {
-        Write-WarningMsg "claude CLI not found, skipping MCP server removal"
-    }
-} finally {
-    $ErrorActionPreference = $oldErrorActionPreference
-    if ($PSVersionTable.PSVersion.Major -ge 7) {
-        $PSNativeCommandUseErrorActionPreference = $oldNativeCommandEap
+    } catch {
+        Write-WarningMsg "settings.json is corrupt, skipping MCP removal"
     }
 }
 

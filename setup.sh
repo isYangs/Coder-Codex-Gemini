@@ -76,12 +76,7 @@ fi
 # ==============================================================================
 write_step "Step 3: Registering MCP server..."
 
-# Try to remove existing ccg MCP server if it exists
-claude mcp remove ccg --scope user 2>/dev/null && write_warning "Removed existing ccg MCP server" || true
-
 # Check uv version to determine if --refresh is supported
-MCP_REGISTERED=false
-LAST_ERROR=""
 USE_REFRESH=false
 UV_VERSION_KNOWN=false
 
@@ -96,59 +91,66 @@ if [[ "$UV_VERSION_OUTPUT" =~ uv\ ([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
     fi
 fi
 
+# Build the args array based on uv version
 if [ "$USE_REFRESH" = true ]; then
-    # Try with --refresh first (disable set -e for this block)
-    set +e
-    REFRESH_OUTPUT=$(claude mcp add ccg --scope user --transport stdio -- uvx --refresh --from git+https://github.com/isYangs/Coder-Codex-Gemini.git ccg-mcp 2>&1)
-    REFRESH_EXIT_CODE=$?
-    set -e
-
-    if [ $REFRESH_EXIT_CODE -eq 0 ]; then
-        MCP_REGISTERED=true
-        write_success "MCP server registered (with --refresh)"
-    elif echo "$REFRESH_OUTPUT" | grep -qiE "(unknown|unrecognized|unexpected|invalid).*(option|flag|argument).*--refresh|--refresh.*(unknown|unrecognized|unexpected|invalid)"; then
-        # Fallback: --refresh was rejected (covers various CLI error message formats), try without it
-        write_warning "--refresh option was rejected, falling back to installation without --refresh..."
-        set +e
-        FALLBACK_OUTPUT=$(claude mcp add ccg --scope user --transport stdio -- uvx --from git+https://github.com/isYangs/Coder-Codex-Gemini.git ccg-mcp 2>&1)
-        FALLBACK_EXIT_CODE=$?
-        set -e
-        if [ $FALLBACK_EXIT_CODE -eq 0 ]; then
-            MCP_REGISTERED=true
-            write_success "MCP server registered (without --refresh)"
-        else
-            LAST_ERROR="$FALLBACK_OUTPUT"
-        fi
-    else
-        LAST_ERROR="$REFRESH_OUTPUT"
-    fi
+    MCP_ARGS='["--refresh", "--from", "git+https://github.com/isYangs/Coder-Codex-Gemini.git", "ccg-mcp"]'
+    REFRESH_NOTE="(with --refresh)"
 else
-    # uv version too old or unknown, skip --refresh
+    MCP_ARGS='["--from", "git+https://github.com/isYangs/Coder-Codex-Gemini.git", "ccg-mcp"]'
     if [ "$UV_VERSION_KNOWN" = true ]; then
         write_warning "Your uv version does not support --refresh option (requires uv >= 0.4.0)"
     else
         write_warning "Could not determine uv version, skipping --refresh option"
     fi
-    write_warning "Installing without --refresh..."
     write_warning "Consider upgrading uv: curl -LsSf https://astral.sh/uv/install.sh | sh"
-
-    set +e
-    FALLBACK_OUTPUT=$(claude mcp add ccg --scope user --transport stdio -- uvx --from git+https://github.com/isYangs/Coder-Codex-Gemini.git ccg-mcp 2>&1)
-    FALLBACK_EXIT_CODE=$?
-    set -e
-    if [ $FALLBACK_EXIT_CODE -eq 0 ]; then
-        MCP_REGISTERED=true
-        write_success "MCP server registered (without --refresh)"
-    else
-        LAST_ERROR="$FALLBACK_OUTPUT"
-    fi
+    REFRESH_NOTE="(without --refresh)"
 fi
 
-if [ "$MCP_REGISTERED" = false ]; then
+# Use Python to directly modify ~/.claude/settings.json
+python3 -c "
+import json
+import os
+
+settings_path = os.path.expanduser('~/.claude/settings.json')
+settings_dir = os.path.expanduser('~/.claude')
+
+# Create .claude directory if it doesn't exist
+os.makedirs(settings_dir, exist_ok=True)
+
+# Read existing settings or create new structure
+if os.path.exists(settings_path):
+    try:
+        with open(settings_path, 'r') as f:
+            content = f.read().strip()
+            settings = json.loads(content) if content else {}
+    except (json.JSONDecodeError, ValueError):
+        print('[WARN] settings.json is corrupt, will recreate')
+        settings = {}
+else:
+    settings = {}
+
+# Ensure mcpServers exists
+if 'mcpServers' not in settings:
+    settings['mcpServers'] = {}
+
+# Remove existing ccg entry if present
+if 'ccg' in settings['mcpServers']:
+    print('[WARN] Removed existing ccg MCP server')
+
+# Add the new ccg MCP server entry
+settings['mcpServers']['ccg'] = {
+    'command': 'uvx',
+    'args': $MCP_ARGS
+}
+
+# Write back to file with proper formatting
+with open(settings_path, 'w') as f:
+    json.dump(settings, f, indent=2)
+    f.write('\n')
+" && write_success "MCP server registered $REFRESH_NOTE" || {
     write_error "Failed to register MCP server"
-    echo "Error details: $LAST_ERROR"
     exit 1
-fi
+}
 
 # ==============================================================================
 # Step 4: Install Skills

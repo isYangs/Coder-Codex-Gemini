@@ -96,10 +96,13 @@ def build_coder_env(config: dict[str, Any]) -> dict[str, str]:
 
     # 清理父进程继承的干扰变量
     # CLAUDE_CODE_ENTRYPOINT=claude-vscode 会导致 -p 模式下 API Key 被拒绝
+    # ANTHROPIC_MODEL/ANTHROPIC_SMALL_FAST_MODEL 会绕过别名映射，导致使用了错误的模型
     _parent_vars_to_remove = [
         "CLAUDE_CODE_ENTRYPOINT",
         "CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING",
         "CLAUDE_AGENT_SDK_VERSION",
+        "ANTHROPIC_MODEL",
+        "ANTHROPIC_SMALL_FAST_MODEL",
     ]
     for var in _parent_vars_to_remove:
         env.pop(var, None)
@@ -154,6 +157,9 @@ def build_coder_settings_json(config: dict[str, Any]) -> str:
             ),
             # 清空 AUTH_TOKEN 防止父进程的 token 干扰认证
             "ANTHROPIC_AUTH_TOKEN": "",
+            # 设为空字符串强制 CLI 走默认模型路径，使其尊重 ANTHROPIC_DEFAULT_*_MODEL 别名
+            "ANTHROPIC_MODEL": "",
+            "ANTHROPIC_SMALL_FAST_MODEL": model,
             "ANTHROPIC_DEFAULT_OPUS_MODEL": model,
             "ANTHROPIC_DEFAULT_SONNET_MODEL": model,
             "ANTHROPIC_DEFAULT_HAIKU_MODEL": model,

@@ -34,15 +34,49 @@ write_warning() {
 # ==============================================================================
 write_step "Step 1: Removing MCP server registration..."
 
-if command -v claude &> /dev/null; then
-    if claude mcp remove ccg --scope user 2>/dev/null; then
-        write_success "MCP server 'ccg' removed"
-    else
-        write_warning "MCP server 'ccg' was not registered or removal failed"
-    fi
-else
-    write_warning "claude CLI not found, skipping MCP server removal"
-fi
+# Use Python to directly modify ~/.claude/settings.json
+python3 -c "
+import json
+import os
+
+settings_path = os.path.expanduser('~/.claude/settings.json')
+
+# Skip if settings file doesn't exist
+if not os.path.exists(settings_path):
+    print('[WARN] MCP server \"ccg\" was not registered')
+    exit(0)
+
+# Read existing settings
+try:
+    with open(settings_path, 'r') as f:
+        content = f.read().strip()
+        if not content:
+            print('[WARN] MCP server \"ccg\" was not registered')
+            exit(0)
+        settings = json.loads(content)
+except (json.JSONDecodeError, ValueError):
+    print('[WARN] settings.json is corrupt, skipping MCP removal')
+    exit(0)
+
+# Check if mcpServers exists and has ccg entry
+if 'mcpServers' not in settings or 'ccg' not in settings['mcpServers']:
+    print('[WARN] MCP server \"ccg\" was not registered')
+    exit(0)
+
+# Remove the ccg entry
+del settings['mcpServers']['ccg']
+
+# Remove mcpServers key if empty
+if not settings['mcpServers']:
+    del settings['mcpServers']
+
+# Write back to file
+with open(settings_path, 'w') as f:
+    json.dump(settings, f, indent=2)
+    f.write('\n')
+
+print('[OK] MCP server \"ccg\" removed')
+" || write_warning "MCP server 'ccg' was not registered"
 
 # ==============================================================================
 # Step 2: Remove Skills

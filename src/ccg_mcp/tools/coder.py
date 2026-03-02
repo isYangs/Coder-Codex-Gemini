@@ -670,6 +670,10 @@ async def coder_tool(
         "--settings", settings_json,             # 5. 覆盖父进程 settings.json 的 env 块
     ]
 
+    # 4.5. 模型配置通过环境变量映射实现
+    # 已设置 ANTHROPIC_DEFAULT_OPUS_MODEL 等环境变量，Claude CLI 会自动使用配置的模型
+    # 不传递 --model 参数，因为 Claude CLI 只识别官方别名（opus/sonnet/haiku），不识别自定义模型名
+
     # 5. 安全策略
     if sandbox != "read-only":
         cmd.append("--dangerously-skip-permissions")
